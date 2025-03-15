@@ -13,12 +13,10 @@ sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=CLIENT_ID,
                                                client_secret=CLIENT_SECRET,
                                                redirect_uri=REDIRECT_URI,
                                                scope="playlist-modify-public playlist-read-private user-library-read"))
-
 #OpenWeatherMap
 def get_weather():
     url = f'http://api.openweathermap.org/data/2.5/weather?q={CITY}&appid={WEATHER_API_KEY}&units=metric'
     response = requests.get(url).json()
-    
     if response.get('weather'):
         main_weather = response['weather'][0]['main'].lower()
         return main_weather
@@ -66,20 +64,15 @@ def generate_playlist():
     weather = get_weather()
     time_of_day = get_time_of_day()
     playlist_mood = get_playlist_mood(weather, time_of_day)
-    
-    # Get all liked songs
     liked_songs = get_liked_songs()
     #print(f"Total liked songs: {len(liked_songs)}")  
-
     selected_songs = []
 
     for song in liked_songs:
         artist_id = song['artists'][0]['id'] 
         genres = get_artist_genre(artist_id)  
-
         if playlist_mood == 'exciting' and any(genre in ['pop', 'rock', 'dance', 'edm'] for genre in genres):
             selected_songs.append(song['id'])
-        
         elif playlist_mood == 'calm' and any(genre in ['classical', 'jazz', 'acoustic', 'ambient'] for genre in genres):
             selected_songs.append(song['id'])
 
@@ -91,7 +84,6 @@ def generate_playlist():
     playlist_name = f"{weather.capitalize()} {time_of_day} Playlist"
     playlist = sp.user_playlist_create(user_id, playlist_name, public=True)
     playlist_id = playlist['id']
-
     sp.playlist_add_items(playlist_id, selected_songs[:50])  # Ensure there are 50 songs
     print(f"Playlist '{playlist_name}' created with {len(selected_songs[:50])} songs!")
 
