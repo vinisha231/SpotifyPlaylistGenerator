@@ -1,16 +1,31 @@
-// script.js
 const CLIENT_ID = 'f50c28d4935145c09a0c9e6cf6fa3c1a';
 const REDIRECT_URI = 'https://vinisha231.github.io/SpotifyPlaylistGenerator/';
 const SCOPES = 'playlist-modify-public playlist-read-private user-library-read';
+const WEATHER_API_KEY = 'a8ef8d3a4c8eb76cfba42a6285841edc'; 
 
 document.getElementById('login-btn').addEventListener('click', () => {
   const url = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}&show_dialog=true`;
   window.location.href = url;
 });
 
+async function getWeatherMood() {
+  const city = 'Kirkland';
+  const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${WEATHER_API_KEY}`);
+  const data = await res.json();
+  return data.weather?.[0]?.main?.toLowerCase() || 'clear';
+}
+
+function getTimeOfDayMood() {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'afternoon';
+  if (hour >= 18 && hour < 22) return 'evening';
+  return 'night';
+}
+
 function updateProgress(percent) {
-  const bar = document.getElementById('progress-bar');
-  bar.style.width = percent + '%';
+  document.getElementById('progress-container').style.display = 'block';
+  document.getElementById('progress-bar').style.width = `${percent}%`;
 }
 
 window.onload = async () => {
@@ -21,78 +36,66 @@ window.onload = async () => {
   if (!accessToken) return;
 
   document.getElementById('status').innerText = 'Logged in! Creating your playlist...';
-  document.getElementById('progress-container').style.display = 'block';
-  updateProgress(5);
+  updateProgress(10);
 
-  const headers = {
-    Authorization: 'Bearer ' + accessToken
-  };
+  const headers = { Authorization: 'Bearer ' + accessToken };
 
-  // Get user ID
-  const userData = await fetch('https://api.spotify.com/v1/me', { headers }).then(res => res.json());
-  const userId = userData.id;
+  const [weather, time] = await Promise.all([getWeatherMood(), getTimeOfDayMood()]);
+  const vibe = `${weather}-${time}`; // e.g., "clear-morning"
+  updateProgress(20);
 
-  // Get liked songs
+  const user = await fetch('https://api.spotify.com/v1/me', { headers }).then(res => res.json());
+  const userId = user.id;
+  updateProgress(30);
+
+  // Fetch liked songs
   let allTracks = [];
   let offset = 0;
   while (true) {
-    const tracksRes = await fetch(`https://api.spotify.com/v1/me/tracks?limit=50&offset=${offset}`, { headers });
-    const trackData = await tracksRes.json();
-    if (!trackData.items.length) break;
-    allTracks.push(...trackData.items.map(item => item.track));
+    const res = await fetch(`https://api.spotify.com/v1/me/tracks?limit=50&offset=${offset}`, { headers });
+    const data = await res.json();
+    if (!data.items.length) break;
+    allTracks.push(...data.items.map(item => item.track));
     offset += 50;
   }
-  updateProgress(25);
-
   if (allTracks.length === 0) {
     document.getElementById('status').innerText = 'No liked songs found!';
     return;
   }
+  updateProgress(50);
 
-  // Get time of day
-  const hour = new Date().getHours();
-  const vibe = (hour >= 6 && hour < 12) ? 'morning'
-              : (hour >= 12 && hour < 18) ? 'afternoon'
-              : (hour >= 18 && hour < 22) ? 'evening'
-              : 'night';
-
-  const vibeGenres = {
-    morning: ['pop', 'dance', 'indie', 'electropop'],
-    afternoon: ['hip hop', 'edm', 'funk', 'rock'],
-    evening: ['acoustic', 'jazz', 'soul', 'rnb'],
-    night: ['ambient', 'lo-fi', 'classical', 'chill']
+  // Genre filters by vibe
+  const moodGenres = {
+    'clear-morning': ['pop', 'dance'],
+    'clear-afternoon': ['rock', 'funk'],
+    'clear-evening': ['rnb', 'soul'],
+    'clear-night': ['ambient', 'acoustic'],
+    'rain-morning': ['lofi', 'jazz'],
+    'rain-afternoon': ['indie', 'folk'],
+    'rain-evening': ['classical', 'instrumental'],
+    'rain-night': ['blues', 'slowcore'],
+    'clouds-morning': ['chill', 'dream pop'],
+    'clouds-night': ['ambient', 'minimal']
   };
 
+  const allowedGenres = moodGenres[vibe] || ['pop'];
+
   const selectedTracks = [];
-  for (let i = 0; i < allTracks.length; i++) {
-    const track = allTracks[i];
-    const artistId = track.artists[0]?.id;
-    if (!artistId) continue;
-
-    const artistRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, { headers });
-    const artistData = await artistRes.json();
-    const artistGenres = artistData.genres || [];
-
-    const matchesVibe = artistGenres.some(genre =>
-      vibeGenres[vibe].some(vibeGenre =>
-        genre.toLowerCase().includes(vibeGenre)
-      )
-    );
-
-    if (matchesVibe) {
+  for (const track of allTracks) {
+    const artists = await fetch(`https://api.spotify.com/v1/artists/${track.artists[0].id}`, { headers }).then(res => res.json());
+    const genres = artists.genres || [];
+    if (genres.some(genre => allowedGenres.includes(genre.toLowerCase()))) {
       selectedTracks.push(track.uri);
     }
-
     if (selectedTracks.length >= 30) break;
-    updateProgress(25 + Math.floor((i / allTracks.length) * 50)); // up to 75%
   }
+  updateProgress(80);
 
-  if (selectedTracks.length < 1) {
-    document.getElementById('status').innerText = 'Couldn’t find any tracks that match your vibe.';
+  if (selectedTracks.length === 0) {
+    document.getElementById('status').innerText = 'No tracks matched your vibe.';
     return;
   }
 
-  // Create playlist
   const playlist = await fetch(`https://api.spotify.com/v1/users/${userId}/playlists`, {
     method: 'POST',
     headers: {
@@ -100,14 +103,12 @@ window.onload = async () => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: `${vibe.charAt(0).toUpperCase() + vibe.slice(1)} Vibes Playlist`,
-      description: `🎶 Curated for your ${vibe} vibes – powered by genre detection!`,
+      name: `${weather} ${time} Vibes`,
+      description: `Auto-generated playlist for ${weather} ${time}`,
       public: true
     })
   }).then(res => res.json());
-  updateProgress(90);
 
-  // Add tracks
   await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
     method: 'POST',
     headers,
@@ -115,9 +116,5 @@ window.onload = async () => {
   });
   updateProgress(100);
 
-  document.getElementById('status').innerText = `Your "${playlist.name}" is live on Spotify!`;
-
-  setTimeout(() => {
-    document.getElementById('progress-container').style.display = 'none';
-  }, 2000);
+  document.getElementById('status').innerText = `Your "${playlist.name}" playlist is ready! 🎧`;
 };
