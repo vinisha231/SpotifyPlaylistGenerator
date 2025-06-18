@@ -3,12 +3,63 @@
 <head>
   <meta charset="UTF-8">
   <title>Spotify Playlist Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+
+    #login-btn {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #1db954;
+      color: white;
+      border: none;
+      border-radius: 25px;
+      cursor: pointer;
+      margin: 20px 0;
+    }
+
+    #login-btn:hover {
+      background-color: #169c47;
+    }
+
+    #progress-container {
+      width: 100%;
+      max-width: 400px;
+      margin: 20px auto;
+      background: #ddd;
+      height: 20px;
+      border-radius: 10px;
+      overflow: hidden;
+      display: none;
+    }
+
+    #progress-bar {
+      height: 100%;
+      width: 0%;
+      background: #1db954;
+      transition: width 0.3s;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
-  <h1>Generate your playlist here! </h1>
-  <p>Login to create a playlist based on your vibe and the time of day.</p>
+  <h1>🎶 Generate Your Spotify Vibe 🎶</h1>
+  <p>Login to create a playlist based on weather and time of day!</p>
+
   <button id="login-btn">Login with Spotify</button>
+
   <div id="status"></div>
+
+  <div id="progress-container">
+    <div id="progress-bar"></div>
+  </div>
 
   <script src="script.js"></script>
 </body>
