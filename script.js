@@ -1,3 +1,4 @@
+// script.js
 const CLIENT_ID = 'f50c28d4935145c09a0c9e6cf6fa3c1a';
 const REDIRECT_URI = 'https://vinisha231.github.io/SpotifyPlaylistGenerator/';
 const SCOPES = 'playlist-modify-public playlist-read-private user-library-read';
@@ -7,6 +8,11 @@ document.getElementById('login-btn').addEventListener('click', () => {
   window.location.href = url;
 });
 
+function updateProgress(percent) {
+  const bar = document.getElementById('progress-bar');
+  bar.style.width = percent + '%';
+}
+
 window.onload = async () => {
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
@@ -14,7 +20,9 @@ window.onload = async () => {
 
   if (!accessToken) return;
 
-  document.getElementById('status').innerText = '🎧 Logged in! Creating your genre-based playlist...';
+  document.getElementById('status').innerText = 'Logged in! Creating your playlist...';
+  document.getElementById('progress-container').style.display = 'block';
+  updateProgress(5);
 
   const headers = {
     Authorization: 'Bearer ' + accessToken
@@ -34,29 +42,30 @@ window.onload = async () => {
     allTracks.push(...trackData.items.map(item => item.track));
     offset += 50;
   }
+  updateProgress(25);
 
   if (allTracks.length === 0) {
     document.getElementById('status').innerText = 'No liked songs found!';
     return;
   }
 
-  // Vibe genre mapping based on time
+  // Get time of day
   const hour = new Date().getHours();
   const vibe = (hour >= 6 && hour < 12) ? 'morning'
-            : (hour >= 12 && hour < 18) ? 'afternoon'
-            : (hour >= 18 && hour < 22) ? 'evening'
-            : 'night';
+              : (hour >= 12 && hour < 18) ? 'afternoon'
+              : (hour >= 18 && hour < 22) ? 'evening'
+              : 'night';
 
   const vibeGenres = {
-    morning: ['pop', 'indie pop', 'dance', 'synthpop', 'electropop'],
-    afternoon: ['pop', 'edm', 'house', 'dance', 'hip hop'],
-    evening: ['lo-fi', 'acoustic', 'r&b', 'soul', 'jazz'],
-    night: ['ambient', 'piano', 'classical', 'downtempo', 'sad']
+    morning: ['pop', 'dance', 'indie', 'electropop'],
+    afternoon: ['hip hop', 'edm', 'funk', 'rock'],
+    evening: ['acoustic', 'jazz', 'soul', 'rnb'],
+    night: ['ambient', 'lo-fi', 'classical', 'chill']
   };
 
   const selectedTracks = [];
-
-  for (const track of allTracks) {
+  for (let i = 0; i < allTracks.length; i++) {
+    const track = allTracks[i];
     const artistId = track.artists[0]?.id;
     if (!artistId) continue;
 
@@ -74,11 +83,12 @@ window.onload = async () => {
       selectedTracks.push(track.uri);
     }
 
-    if (selectedTracks.length >= 30) break; // max limit for this version
+    if (selectedTracks.length >= 30) break;
+    updateProgress(25 + Math.floor((i / allTracks.length) * 50)); // up to 75%
   }
 
-  if (selectedTracks.length === 0) {
-    document.getElementById('status').innerText = 'No tracks matched your genre vibe.';
+  if (selectedTracks.length < 1) {
+    document.getElementById('status').innerText = 'Couldn’t find any tracks that match your vibe.';
     return;
   }
 
@@ -90,11 +100,12 @@ window.onload = async () => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: `${vibe.charAt(0).toUpperCase() + vibe.slice(1)} Genre Vibes`,
-      description: `A genre-matched playlist based on time of day.`,
+      name: `${vibe.charAt(0).toUpperCase() + vibe.slice(1)} Vibes Playlist`,
+      description: `🎶 Curated for your ${vibe} vibes – powered by genre detection!`,
       public: true
     })
   }).then(res => res.json());
+  updateProgress(90);
 
   // Add tracks
   await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
@@ -102,6 +113,11 @@ window.onload = async () => {
     headers,
     body: JSON.stringify({ uris: selectedTracks })
   });
+  updateProgress(100);
 
-  document.getElementById('status').innerText = `Your "${playlist.name}" playlist has been added to your Spotify!`;
+  document.getElementById('status').innerText = `Your "${playlist.name}" is live on Spotify!`;
+
+  setTimeout(() => {
+    document.getElementById('progress-container').style.display = 'none';
+  }, 2000);
 };
