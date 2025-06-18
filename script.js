@@ -14,7 +14,7 @@ window.onload = async () => {
 
   if (!accessToken) return;
 
-  document.getElementById('status').innerText = 'Logged in! Creating your playlist...';
+  document.getElementById('status').innerText = '🎧 Logged in! Creating your genre-based playlist...';
 
   const headers = {
     Authorization: 'Bearer ' + accessToken
@@ -40,40 +40,45 @@ window.onload = async () => {
     return;
   }
 
-  // Get time of day
+  // Vibe genre mapping based on time
   const hour = new Date().getHours();
   const vibe = (hour >= 6 && hour < 12) ? 'morning'
             : (hour >= 12 && hour < 18) ? 'afternoon'
             : (hour >= 18 && hour < 22) ? 'evening'
             : 'night';
 
-  // Get audio features for all tracks  
+  const vibeGenres = {
+    morning: ['pop', 'indie pop', 'dance', 'synthpop', 'electropop'],
+    afternoon: ['pop', 'edm', 'house', 'dance', 'hip hop'],
+    evening: ['lo-fi', 'acoustic', 'r&b', 'soul', 'jazz'],
+    night: ['ambient', 'piano', 'classical', 'downtempo', 'sad']
+  };
+
   const selectedTracks = [];
-  const trackIds = allTracks.map(t => t.id);
-  for (let i = 0; i < trackIds.length; i += 100) {
-    const chunk = trackIds.slice(i, i + 100);
-    const featuresRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${chunk.join(',')}`, { headers });
-    const featuresData = await featuresRes.json();
 
-    featuresData.audio_features.forEach((feature, index) => {
-      if (!feature) return;  
+  for (const track of allTracks) {
+    const artistId = track.artists[0]?.id;
+    if (!artistId) continue;
 
-      const matchesVibe =
-        (vibe === 'morning' && feature.energy > 0.7 && feature.valence > 0.5) ||
-        (vibe === 'afternoon' && feature.danceability > 0.6 && feature.energy > 0.5) ||
-        (vibe === 'evening' && feature.acousticness > 0.4 && feature.valence < 0.6) ||
-        (vibe === 'night' && feature.valence < 0.4 && feature.energy < 0.5);
+    const artistRes = await fetch(`https://api.spotify.com/v1/artists/${artistId}`, { headers });
+    const artistData = await artistRes.json();
+    const artistGenres = artistData.genres || [];
 
-      if (matchesVibe) {
-        selectedTracks.push(allTracks[i + index].uri);
-      }
-    });
+    const matchesVibe = artistGenres.some(genre =>
+      vibeGenres[vibe].some(vibeGenre =>
+        genre.toLowerCase().includes(vibeGenre)
+      )
+    );
 
-    if (selectedTracks.length >= 20) break;
+    if (matchesVibe) {
+      selectedTracks.push(track.uri);
+    }
+
+    if (selectedTracks.length >= 30) break; // max limit for this version
   }
 
-  if (selectedTracks.length < 1) {
-    document.getElementById('status').innerText = 'Couldn’t find any tracks that match your vibe.';
+  if (selectedTracks.length === 0) {
+    document.getElementById('status').innerText = 'No tracks matched your genre vibe.';
     return;
   }
 
@@ -85,8 +90,8 @@ window.onload = async () => {
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      name: `${vibe.charAt(0).toUpperCase() + vibe.slice(1)} Vibes Playlist`,
-      description: `Generated based on your audio features & time of day.`,
+      name: `${vibe.charAt(0).toUpperCase() + vibe.slice(1)} Genre Vibes`,
+      description: `A genre-matched playlist based on time of day.`,
       public: true
     })
   }).then(res => res.json());
@@ -95,8 +100,8 @@ window.onload = async () => {
   await fetch(`https://api.spotify.com/v1/playlists/${playlist.id}/tracks`, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ uris: selectedTracks.slice(0, 30) }) // cap to 30 max
+    body: JSON.stringify({ uris: selectedTracks })
   });
 
-  document.getElementById('status').innerText = `Your "${playlist.name}" was created and added to your Spotify!`;
+  document.getElementById('status').innerText = `Your "${playlist.name}" playlist has been added to your Spotify!`;
 };
