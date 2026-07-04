@@ -175,5 +175,15 @@ window.onload = async () => {
   });
   updateProgress(100);
 
-  document.getElementById('status').innerHTML = `Your "<a href="https://open.spotify.com/playlist/${playlist.id}" target="_blank">${playlist.name}</a>" playlist has been created!`;
+  // Build the result via DOM APIs instead of innerHTML so the playlist name
+  // and id returned by the API are treated as text/attributes, not markup.
+  const status = document.getElementById('status');
+  status.textContent = 'Your "';
+  const link = document.createElement('a');
+  link.href = `https://open.spotify.com/playlist/${encodeURIComponent(playlist.id)}`;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = playlist.name;
+  status.appendChild(link);
+  status.appendChild(document.createTextNode('" playlist has been created!'));
 };
